@@ -1,0 +1,93 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: #444444;
+  background-color: #f8f8f8;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  padding: 0;
+  margin: 0;
+  display: grid;
+  place-items: self-start;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+#app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+#uploadForm {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding: 2rem;
+  background-color: #f9f9f9;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Example input styling */
+#uploadForm input[type="file"],
+#uploadForm button {
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  transition: all 0.3s ease;
+}
+
+#uploadBtn {
+  max-width: 12rem;
+}
+
+/* Button hover effect */
+#uploadForm button:hover {
+  background-color: #0078d4;
+  color: white;
+  border-color: #0078d4;
+  cursor: pointer;
+}
+
+/* Responsive tweak */
+@media (max-width: 600px) {
+  #uploadForm {
+    padding: 1rem;
+    gap: 1rem;
+  }
+}
+
+#progressBar {
+  width: 100%;
+  height: 0.5rem;
+  appearance: none;
+  border-radius: 0.2rem;
+  overflow: hidden;
+  background-color: #eee;
+}
+
+#progressBar::-webkit-progress-value {
+  background-color: #0078d4; /* Microsoft blue */
+}
+
+#progressBar::-moz-progress-bar {
+  background-color: #0078d4;
+}
