@@ -4,12 +4,21 @@ export async function chunker(
   chunkSize: number = 1024 * 512 // 512KB default
 ) {
   if (!file) return;
-  let start = 0;
-  let chunkIndex = 0;
+
   const totalChunks = Math.ceil(file.size / chunkSize);
   console.log(`Total chunks to upload: ${totalChunks}`);
 
-  async function uploadNextChunk() {
+  if (totalChunks === 0) {
+    onProgress?.(100);
+    return;
+  }
+
+  onProgress?.(0);
+
+  let completedChunks = 0;
+
+  const uploadChunk = async (chunkIndex: number) => {
+    const start = chunkIndex * chunkSize;
     const end = Math.min(start + chunkSize, file.size);
     const chunk = file.slice(start, end);
 
@@ -21,25 +30,24 @@ export async function chunker(
     for (let [key, value] of formData.entries()) {
       console.info(`${key}:`, value);
     }
-    try {
-      const url_dest = "http://localhost:3000/upload";
-      await fetch(url_dest, {method: "POST", body: formData});
 
-      start = end;
-      chunkIndex++;
-      if (onProgress) {
-        onProgress((chunkIndex / totalChunks) * 100);
-      }
+    const urlDest = "http://localhost:3000/upload";
 
-      if (start < file.size) {
-        await uploadNextChunk(); // next chunk
-      } else {
-        console.log("Upload complete!");
-      }
-    } catch (err) {
-      console.error("Upload failed", err);
-    }
+    await fetch(urlDest, {method: "POST", body: formData});
+
+    completedChunks += 1;
+    onProgress?.((completedChunks / totalChunks) * 100);
+  };
+
+  try {
+    const uploadTasks = Array.from({length: totalChunks}, (_, chunkIndex) =>
+      uploadChunk(chunkIndex)
+    );
+
+    await Promise.all(uploadTasks); // upload all chunks concurrently
+    console.log("Upload complete!");
+  } catch (err) {
+    console.error("Upload failed", err);
+    throw err;
   }
-
-  await uploadNextChunk();
 }
