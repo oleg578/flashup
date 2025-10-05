@@ -10,14 +10,20 @@ import (
 	"fmt"
 )
 
+type Chunks struct {
+	Total    int
+	Received []string
+}
+
 func setCORSHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 }
 
+var chunkPool Chunks
+
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
-	defer cleanupTempChunks()
 	setCORSHeaders(w)
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)
@@ -40,6 +46,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	fileName := r.FormValue("fileName")
 	chunkIndex := r.FormValue("chunkIndex")
 	totalChunks := r.FormValue("totalChunks")
+	chunkPool.Total, _ = strconv.Atoi(totalChunks)
 	if fileName == "" || chunkIndex == "" || totalChunks == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprint(w, "Missing parameters")
@@ -56,6 +63,26 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Failed to save chunk")
 		return
 	}
+	defer func(out *os.File) {
+		if err := out.Close(); err != nil {
+			log.Println("Failed to close chunk file:", err)
+		} else {
+			chunkPool.Received = append(chunkPool.Received, chunkPath)
+			log.Printf("Chunk %s saved successfully\n", chunkPath)
+			log.Printf("%+v\n", chunkPool)
+			if len(chunkPool.Received) == chunkPool.Total {
+				log.Println("All chunks received, assembling file...")
+				err := assembleFile(fileName, chunkPool.Total)
+				if err != nil {
+					log.Println("Failed to assemble file:", err)
+				} else {
+					log.Println("File assembled successfully")
+				}
+				chunkPool = Chunks{}
+			}
+		}
+	}(out)
+
 	_, err = io.Copy(out, file)
 	if err != nil {
 		out.Close()
@@ -63,38 +90,36 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Failed to save chunk")
 		return
 	}
-	out.Close()
-
-	chunkIdx, _ := strconv.Atoi(chunkIndex)
-	totalChks, _ := strconv.Atoi(totalChunks)
-	if chunkIdx+1 == totalChks {
-		uploadDir := filepath.Join(".", "uploads")
-		os.MkdirAll(uploadDir, 0755)
-		finalPath := filepath.Join(uploadDir, fileName)
-		finalOut, err := os.Create(finalPath)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprint(w, "Failed to create final file")
-			return
-		}
-		defer finalOut.Close()
-		for i := 0; i < totalChks; i++ {
-			partPath := filepath.Join(tempDir, fmt.Sprintf("%s-%d", fileName, i))
-			log.Println("Merging part:", partPath)
-			in, err := os.Open(partPath)
-			if err != nil {
-				log.Println("Failed to open part:", partPath)
-				continue
-			}
-			if err == nil {
-				io.Copy(finalOut, in)
-				in.Close()
-				os.Remove(partPath)
-			}
-		}
-	}
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "Chunk uploaded")
+}
+
+func assembleFile(fileName string, totalChunks int) error {
+	defer cleanupTempChunks()
+	tempDir := filepath.Join(".", "temp_chunks")
+	uploadDir := filepath.Join(".", "uploads")
+	os.MkdirAll(uploadDir, 0755)
+	finalPath := filepath.Join(uploadDir, fileName)
+	finalOut, err := os.Create(finalPath)
+	if err != nil {
+		return err
+	}
+	defer finalOut.Close()
+	for i := 0; i < totalChunks; i++ {
+		partPath := filepath.Join(tempDir, fmt.Sprintf("%s-%d", fileName, i))
+		log.Println("Merging part:", partPath)
+		in, err := os.Open(partPath)
+		if err != nil {
+			log.Println("Failed to open part:", partPath)
+			continue
+		}
+		if err == nil {
+			io.Copy(finalOut, in)
+			in.Close()
+			os.Remove(partPath)
+		}
+	}
+	return nil
 }
 
 func cleanupTempChunks() {
